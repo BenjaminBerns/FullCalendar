@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang='fr'>
+<head>
+    <meta charset='utf-8' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.15.10/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.15.10/dist/sweetalert2.all.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                height: 650,
+                events: 'fetchEvents.php',
+                selectable: true,
+                locale: 'fr',
+                editable: true,
+                firstDay: 1,
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
+                },
+                eventClick: function(info) {
+                    info.jsEvent.preventDefault();
+                    info.el.style.borderColor = 'red';
+
+                    Swal.fire({
+                        title: info.event.title,
+                        icon: 'info',
+                        html: '<p>' + info.event.extendedProps.description + '</p><a href="' + info.event.url + '">Visit event page</a>',
+                        showCloseButton: true,
+                        showCancelButton: true,
+                        showDenyButton: true,
+                        cancelButtonText: 'Close',
+                        confirmButtonText: 'Delete',
+                        denyButtonText: 'Edit',
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            fetch("eventHandler.php", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ request_type: 'deleteEvent', event_id: info.event.id }),
+                            })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status == 1) {
+                                    Swal.fire('Event deleted successfully!', '', 'success');
+                                } else {
+                                    Swal.fire(data.error, '', 'error');
+                                }
+                                calendar.refetchEvents();
+                            })
+                            .catch(console.error);
+                        } else if (result.isDenied) {
+                            Swal.fire({
+                                title: 'Edit Event',
+                                html:
+                                    '<input id="swalEvtTitle_edit" class="swal2-input" placeholder="Enter title" value="' + info.event.title + '">' +
+                                    '<input id="swalEvtDesc_edit" class="swal2-input" placeholder="Enter description" value="' + info.event.extendedProps.description + '">' +
+                                    '<input id="swalEvtURL_edit" class="swal2-input" placeholder="Enter URL" value="' + info.event.url + '">' +
+                                    '<input type="date" id="swalEvtDateD_edit" class="swal2-input" value="' + info.event.startStr + '">' +
+                                    '<input type="date" id="swalEvtDateF_edit" class="swal2-input" value="' + (info.event.endStr ? info.event.endStr : info.event.startStr) + '">' +
+                                    '<input type="color" id="swalEvtColor_edit" class="swal2-input" value="' + (info.event.backgroundColor ? info.event.backgroundColor : "#3788d8") + '">',
+                                focusConfirm: false,
+                                confirmButtonText: 'Submit',
+                                preConfirm: () => {
+                                    return [
+                                        document.getElementById('swalEvtTitle_edit').value,
+                                        document.getElementById('swalEvtDesc_edit').value,
+                                        document.getElementById('swalEvtURL_edit').value,
+                                        document.getElementById('swalEvtDateD_edit').value,
+                                        document.getElementById('swalEvtDateF_edit').value,
+                                        document.getElementById('swalEvtColor_edit').value
+                                    ];
+                                }
+                            }).then((result) => {
+                                if (result.value) {
+                                    fetch("eventHandler.php", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                            request_type: 'editEvent',
+                                            start: result.value[3],
+                                            end: result.value[4],
+                                            event_id: info.event.id,
+                                            event_data: result.value
+                                        })
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.status == 1) {
+                                            Swal.fire('Event updated successfully!', '', 'success');
+                                        } else {
+                                            Swal.fire(data.error, '', 'error');
+                                        }
+                                        calendar.refetchEvents();
+                                    })
+                                    .catch(console.error);
+                                }
+                            });
+                        }
+                    });
+                },
+                select: async function () {
+                    const { value: formValues } = await Swal.fire({
+                        title: 'Add Event',
+                        confirmButtonText: 'Submit',
+                        showCloseButton: true,
+                        showCancelButton: true,
+                        html:
+                            '<input id="swalEvtTitle" class="swal2-input" placeholder="Enter title">' +
+                            '<input id="swalEvtDesc" class="swal2-input" placeholder="Enter description">' +
+                            '<input id="swalEvtURL" class="swal2-input" placeholder="Enter URL">' +
+                            '<input type="date" id="swalEvtDateD" class="swal2-input" placeholder="Start Date">' +
+                            '<input type="date" id="swalEvtDateF" class="swal2-input" placeholder="End Date">' +
+                            '<input type="color" id="swalEvtColor" class="swal2-input" value="#3788d8">',
+                        preConfirm: () => {
+                            return [
+                                document.getElementById('swalEvtTitle').value,
+                                document.getElementById('swalEvtDesc').value,
+                                document.getElementById('swalEvtURL').value,
+                                document.getElementById('swalEvtDateD').value,
+                                document.getElementById('swalEvtDateF').value,
+                                document.getElementById('swalEvtColor').value
+                            ]
+                        }
+                    });
+
+                    if (formValues) {
+                        fetch("eventHandler.php", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ request_type: 'addEvent', event_data: formValues }),
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status == 1) {
+                                Swal.fire('Event added successfully!', '', 'success');
+                            } else {
+                                Swal.fire(data.error, '', 'error');
+                            }
+                            calendar.refetchEvents();
+                        })
+                        .catch(console.error);
+                    }
+                }
+            });
+
+            calendar.render();
+        });
+    </script>
+</head>
+<body>
+    <div id='calendar'></div>
+</body>
+</html>
